@@ -43,7 +43,7 @@ def test_gravity_caregiver_page_renders_with_existing_synthetic_patient(tmp_path
     assert app.title[0].value == "Monarch Model — Caregiver Assessment"
     assert any(button.label == "Reset assessment" for button in app.button)
     assert any(button.label == "Submit assessment" for button in app.button)
-    assert any(selectbox.label == "Patient" for selectbox in app.selectbox)
+    assert any(selectbox.label == "Caregiver" for selectbox in app.selectbox)
     text_area_labels = {area.label for area in app.text_area}
     assert "How are you feeling today?" in text_area_labels
     assert "What's going on in your life today?" in text_area_labels

@@ -14,13 +14,14 @@ from connectathon.gravity_response import build_questionnaire_response
 from connectathon.gravity_storage import init_questionnaire_storage, load_questionnaire_responses, save_questionnaire_response
 from hl7_demo.generators import gen_patient
 from monarch.questionnaire.renderer import RenderResult, render_questionnaire
+from monarch.questionnaire.scope import ASSESSMENT_SCOPE_PROMPT, SCOPE_LABELS, SCOPE_ORDER
 from storage_duckdb_entities import DEFAULT_DB_PATH, init_db, upsert_patient
 from utils.db import reader
 
 
-st.set_page_config(page_title="MediLacra — Gravity Caregiver Health", layout="wide")
-st.title("Gravity — Caregiver Health Baseline")
-st.caption("Same caregiver semantics, now rendered from the Questionnaire definition instead of hard-coded twice.")
+st.set_page_config(page_title="Monarch Model — Caregiver Assessment", layout="wide")
+st.title("Monarch Model — Caregiver Assessment")
+st.caption("A modular caregiver assessment: preserve context first, then test what survives downstream representation.")
 
 
 def _load_patients(db_path: str, limit: int = 100) -> list[dict]:
@@ -120,7 +121,7 @@ if not patients:
 
 patient_lookup = {str(patient["patient_id"]): patient for patient in patients}
 selected_patient_id = st.selectbox(
-    "Patient",
+    "Caregiver",
     options=list(patient_lookup),
     format_func=lambda patient_id: f"{patient_id} — {patient_lookup[patient_id].get('patient_name') or 'Unnamed synthetic patient'}",
     key="cg_patient",
@@ -128,12 +129,22 @@ selected_patient_id = st.selectbox(
 patient = patient_lookup[selected_patient_id]
 
 st.divider()
-st.subheader("2. Caregiver Health Baseline")
+st.subheader("2. Monarch assessment")
 questionnaire = build_questionnaire()
+selected_scope = st.selectbox(
+    ASSESSMENT_SCOPE_PROMPT,
+    options=list(SCOPE_ORDER),
+    index=list(SCOPE_ORDER).index("basics"),
+    format_func=lambda code: SCOPE_LABELS[code],
+    key="cg_assessment_scope",
+)
+st.caption("You can choose a smaller assessment without losing the ability to record safety or interaction preferences.")
 rendered = render_questionnaire(
     questionnaire,
-    selected_scope="full",
+    selected_scope=selected_scope,
     key_prefix="cg",
+    exclude={"assessment-scope"},
+    initial_raw={"assessment-scope": selected_scope},
     custom_renderers={"medications": _render_medications},
 )
 

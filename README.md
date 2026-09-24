@@ -38,3 +38,11 @@ The imported code is a baseline, not the Monarch implementation itself. The next
 ## License note
 
 The imported MediLacra source is AGPL-3.0. This repository therefore preserves that license for the derivative baseline rather than relabeling the copied code under the MIT license that was selected when the repository was initialized.
+
+## Frozen baseline
+
+The pre-Monarch working baseline is documented in:
+
+`docs/baseline/MONARCH_BASELINE_v0.1_2026-09-24.md`
+
+A dedicated baseline branch preserves that checkpoint separately from ongoing Monarch implementation work.

@@ -58,3 +58,9 @@ The first post-baseline Monarch implementation design is:
 The implementation plan for the v0.2 design is:
 
 `docs/design/MONARCH_MODEL_V0.2_BUILD_PLAN.md`
+
+## v0.2 build history
+
+Implementation history and CI results:
+
+`docs/build/MONARCH_V0.2_BUILD_HISTORY_2026-09-24.md`

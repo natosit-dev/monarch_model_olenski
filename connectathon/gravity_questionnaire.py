@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from monarch.questionnaire.definitions import question_item
+
 
 QUESTIONNAIRE_ID = "caregiver-health-baseline"
 QUESTIONNAIRE_VERSION = "0.2"
@@ -37,7 +39,6 @@ def local_coding(code: str, display: str) -> dict[str, str]:
 
 
 def data_absent_reason(reason: str) -> dict[str, str]:
-    """Return the standard FHIR data-absent-reason extension."""
     return {"url": DATA_ABSENT_REASON_URL, "valueCode": reason}
 
 
@@ -50,22 +51,17 @@ def _question_item(
     answer_options: Sequence[Mapping[str, Any]] | None = None,
     repeats: bool = False,
 ) -> dict[str, Any]:
-    item: dict[str, Any] = {
-        "linkId": link_id,
-        "text": text,
-        "type": item_type,
-        "required": False,
-        "repeats": repeats,
-    }
-    if coding:
-        item["code"] = [dict(coding)]
-    if answer_options:
-        item["answerOption"] = [dict(option) for option in answer_options]
-    return item
+    return question_item(
+        link_id,
+        text,
+        item_type,
+        coding=coding,
+        answer_options=answer_options,
+        repeats=repeats,
+    )
 
 
 def build_questionnaire() -> dict[str, Any]:
-    """Build the caregiver baseline as a standard FHIR R4 Questionnaire."""
     phq_options = [
         {
             "valueCoding": {
@@ -76,28 +72,28 @@ def build_questionnaire() -> dict[str, Any]:
         }
         for code, display, _score in PHQ_CHOICES
     ]
+    pain_options = [{"valueInteger": value} for value in range(0, 11)]
 
-    medication_group = {
-        "linkId": "medications",
-        "text": "Medication",
-        "type": "group",
-        "required": False,
-        "repeats": True,
-        "enableWhen": [
+    medication_group = question_item(
+        "medications",
+        "Medication",
+        "group",
+        repeats=True,
+        enable_when=[
             {
                 "question": "medication-status",
                 "operator": "=",
                 "answerBoolean": True,
             }
         ],
-        "item": [
-            _question_item("medication-name", "Medication name", "string"),
-            _question_item("medication-dose-value", "Dose", "decimal"),
-            _question_item("medication-dose-unit", "Dose unit", "string"),
-            _question_item("medication-route", "Route", "string"),
-            _question_item("medication-frequency", "Frequency", "string"),
+        children=[
+            question_item("medication-name", "Medication name", "string"),
+            question_item("medication-dose-value", "Dose", "decimal"),
+            question_item("medication-dose-unit", "Dose unit", "string"),
+            question_item("medication-route", "Route", "string"),
+            question_item("medication-frequency", "Frequency", "string"),
         ],
-    }
+    )
 
     return {
         "resourceType": "Questionnaire",
@@ -116,40 +112,38 @@ def build_questionnaire() -> dict[str, Any]:
         ),
         "subjectType": ["Patient"],
         "item": [
-            _question_item(
+            question_item(
                 "sleep-hours",
                 "About how many hours did you sleep in the past 24 hours?",
                 "quantity",
                 coding=local_coding("sleep-hours-24h", "Hours slept in past 24 hours"),
+                placeholder="e.g. 6.5",
+                quantity_unit_coding={"system": UCUM_SYSTEM, "code": "h", "display": "hours"},
+                section="Sleep",
             ),
-            _question_item(
+            question_item(
                 "pain-score",
-                (
-                    "On a scale from 0 to 10, where 0 means no pain and 10 means the worst pain "
-                    "imaginable, how would you rate your pain right now?"
-                ),
+                "On a scale from 0 to 10, where 0 means no pain and 10 means the worst pain imaginable, how would you rate your pain right now?",
                 "integer",
-                coding=loinc_coding(
-                    PAIN_LOINC,
-                    "Pain severity - 0-10 verbal numeric rating [Score] - Reported",
-                ),
+                coding=loinc_coding(PAIN_LOINC, "Pain severity - 0-10 verbal numeric rating [Score] - Reported"),
+                answer_options=pain_options,
+                section="Pain",
             ),
-            {
-                "linkId": "phq2",
-                "text": "Over the last 2 weeks, how often have you been bothered by the following problems?",
-                "type": "group",
-                "required": False,
-                "repeats": False,
-                "code": [loinc_coding(PHQ2_TOTAL, "PHQ-2 total score")],
-                "item": [
-                    _question_item(
+            question_item(
+                "phq2",
+                "Over the last 2 weeks, how often have you been bothered by the following problems?",
+                "group",
+                coding=loinc_coding(PHQ2_TOTAL, "PHQ-2 total score"),
+                section="PHQ-2",
+                children=[
+                    question_item(
                         "phq2-interest",
                         "Little interest or pleasure in doing things",
                         "choice",
                         coding=loinc_coding(PHQ2_QUESTION_1, "Little interest or pleasure in doing things"),
                         answer_options=phq_options,
                     ),
-                    _question_item(
+                    question_item(
                         "phq2-depressed",
                         "Feeling down, depressed, or hopeless",
                         "choice",
@@ -157,30 +151,38 @@ def build_questionnaire() -> dict[str, Any]:
                         answer_options=phq_options,
                     ),
                 ],
-            },
-            _question_item(
+            ),
+            question_item(
                 "heart-rate",
                 "What is your current heart rate?",
                 "quantity",
                 coding=loinc_coding(HEART_RATE_LOINC, "Heart rate"),
+                placeholder="e.g. 82",
+                quantity_unit_coding={"system": UCUM_SYSTEM, "code": "/min", "display": "beats/minute"},
+                section="Heart rate",
             ),
-            _question_item(
+            question_item(
                 "medication-status",
                 "Are you currently taking any medications?",
                 "boolean",
+                section="Medication reconciliation",
             ),
             medication_group,
-            _question_item(
+            question_item(
                 "feeling-today",
                 "How are you feeling today?",
                 "text",
                 coding=local_coding("feeling-today", "How are you feeling today?"),
+                placeholder="Write as much or as little as you want.",
+                section="How are you feeling today?",
             ),
-            _question_item(
+            question_item(
                 "life-today",
                 "What's going on in your life today?",
                 "text",
                 coding=local_coding("life-today", "What's going on in your life today?"),
+                placeholder="Anything that feels relevant today.",
+                section="What's going on in your life today?",
             ),
         ],
     }

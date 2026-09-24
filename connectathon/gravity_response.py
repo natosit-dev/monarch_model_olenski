@@ -14,8 +14,10 @@ from connectathon.gravity_questionnaire import (
     QUESTIONNAIRE_URL,
     QUESTIONNAIRE_VERSION,
     UCUM_SYSTEM,
+    build_questionnaire,
     data_absent_reason,
 )
+from monarch.questionnaire.response_adapter import build_response_items
 
 
 PATIENT_IDENTIFIER_SYSTEM = "https://medilacra.dev/patient-id"
@@ -246,6 +248,23 @@ def _medication_group(raw_medication: Mapping[str, Any], index: int) -> dict[str
     }
 
 
+def _medications_response_builder(
+    item: Mapping[str, Any],
+    raw_input: Mapping[str, Any],
+    declined: set[str],
+) -> list[dict[str, Any]]:
+    if raw_input.get("medication-status") is not True:
+        return []
+    groups: list[dict[str, Any]] = []
+    for index, medication in enumerate(raw_input.get("medications") or [], start=1):
+        if not isinstance(medication, Mapping):
+            continue
+        group = _medication_group(medication, index)
+        if group:
+            groups.append(group)
+    return groups
+
+
 def build_questionnaire_response(
     patient_id: str,
     raw_input: Mapping[str, Any],
@@ -254,74 +273,18 @@ def build_questionnaire_response(
     authored: str | None = None,
     response_id: str | None = None,
 ) -> dict[str, Any]:
-    """Build a FHIR QuestionnaireResponse directly from the UI state."""
+    """Build a FHIR QuestionnaireResponse from questionnaire definitions plus raw UI state."""
     declined = declined or set()
     qr_id = fhir_id(response_id or f"caregiver-qr-{uuid.uuid4().hex}", prefix="qr")
     authored = authored or datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-    medication_status = _item(
-        "medication-status",
-        "Are you currently taking any medications?",
-        _boolean_answer(raw_input.get("medication-status"), "medication-status" in declined),
-    )
-
-    items: list[dict[str, Any]] = [
-        _item(
-            "sleep-hours",
-            "About how many hours did you sleep in the past 24 hours?",
-            _quantity_answer(raw_input.get("sleep-hours"), "hours", "h", "sleep-hours" in declined),
-        ),
-        _item(
-            "pain-score",
-            "Pain right now (0-10)",
-            _integer_answer(raw_input.get("pain-score"), "pain-score" in declined),
-        ),
-        {
-            "linkId": "phq2",
-            "text": "PHQ-2",
-            "item": [
-                _item(
-                    "phq2-interest",
-                    "Little interest or pleasure in doing things",
-                    _phq_answer(raw_input.get("phq2-interest"), "phq2-interest" in declined),
-                ),
-                _item(
-                    "phq2-depressed",
-                    "Feeling down, depressed, or hopeless",
-                    _phq_answer(raw_input.get("phq2-depressed"), "phq2-depressed" in declined),
-                ),
-            ],
-        },
-        _item(
-            "heart-rate",
-            "What is your current heart rate?",
-            _quantity_answer(raw_input.get("heart-rate"), "beats/minute", "/min", "heart-rate" in declined),
-        ),
-        medication_status,
-    ]
-
-    status_answers = medication_status.get("answer") or []
-    taking_medications = bool(status_answers and status_answers[0].get("valueBoolean") is True)
-    if taking_medications:
-        for index, medication in enumerate(raw_input.get("medications") or [], start=1):
-            if isinstance(medication, Mapping):
-                group = _medication_group(medication, index)
-                if group:
-                    items.append(group)
-
-    items.extend(
-        [
-            _item(
-                "feeling-today",
-                "How are you feeling today?",
-                _text_answer(raw_input.get("feeling-today"), "feeling-today" in declined),
-            ),
-            _item(
-                "life-today",
-                "What's going on in your life today?",
-                _text_answer(raw_input.get("life-today"), "life-today" in declined),
-            ),
-        ]
+    selected_scope = str(raw_input.get("assessment-scope") or "full")
+    questionnaire = build_questionnaire()
+    items = build_response_items(
+        list(questionnaire.get("item") or []),
+        raw_input,
+        declined=declined,
+        selected_scope=selected_scope,
+        custom_builders={"medications": _medications_response_builder},
     )
 
     return {
@@ -333,7 +296,6 @@ def build_questionnaire_response(
         "authored": authored,
         "item": items,
     }
-
 
 def iter_response_items(items: list[dict[str, Any]], prefix: str = ""):
     """Yield every QuestionnaireResponse item with a stable local path."""

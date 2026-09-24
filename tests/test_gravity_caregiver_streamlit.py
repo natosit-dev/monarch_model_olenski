@@ -68,7 +68,7 @@ def test_decline_button_survives_streamlit_rerun_without_duckdb_configuration_er
     app = AppTest.from_file(str(_page_path()), default_timeout=10).run()
     assert not app.exception
 
-    decline = next(button for button in app.button if button.label == "Decline")
+    decline = next(button for button in app.button if button.label == "Prefer not to answer")
     app = decline.click().run()
 
     assert not app.exception
@@ -89,7 +89,7 @@ def test_reset_clears_decline_state_and_returns_questionnaire_controls_to_baseli
     app = AppTest.from_file(str(_page_path()), default_timeout=10).run()
     assert not app.exception
 
-    decline = next(button for button in app.button if button.label == "Decline")
+    decline = next(button for button in app.button if button.label == "Prefer not to answer")
     app = decline.click().run()
     assert any(button.label == "Answer instead" for button in app.button)
 
@@ -105,7 +105,7 @@ def test_reset_clears_decline_state_and_returns_questionnaire_controls_to_baseli
     assert not app.exception
     assert not any(button.label == "Answer instead" for button in app.button)
     assert not any("asked-declined" in caption.value for caption in app.caption)
-    assert any(button.label == "Decline" for button in app.button)
+    assert any(button.label == "Prefer not to answer" for button in app.button)
     feeling_area = next(area for area in app.text_area if area.label == "How are you feeling today?")
     life_area = next(area for area in app.text_area if area.label == "What's going on in your life today?")
     assert feeling_area.value == ""

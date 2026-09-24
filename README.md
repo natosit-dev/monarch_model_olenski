@@ -52,3 +52,9 @@ A dedicated baseline branch preserves that checkpoint separately from ongoing Mo
 The first post-baseline Monarch implementation design is:
 
 `docs/design/MONARCH_MODEL_V0.2_DESIGN.md`
+
+## Build plan
+
+The implementation plan for the v0.2 design is:
+
+`docs/design/MONARCH_MODEL_V0.2_BUILD_PLAN.md`

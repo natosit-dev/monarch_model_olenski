@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Mapping, Any
+from typing import Any, Mapping
 
+from .choices import coded_options
 from .definitions import SCOPE_EXTENSION_URL, extension_value
 
 
@@ -13,6 +14,7 @@ SCOPE_LABELS = {
     "full": "Full evaluation",
 }
 ASSESSMENT_SCOPE_PROMPT = "How much do you feel like you can handle right now?"
+SCOPE_OPTIONS = coded_options(tuple((code, SCOPE_LABELS[code]) for code in SCOPE_ORDER))
 
 
 def scope_allows(item: Mapping[str, Any], selected_scope: str) -> bool:

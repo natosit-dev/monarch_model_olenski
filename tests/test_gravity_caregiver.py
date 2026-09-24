@@ -83,7 +83,7 @@ def test_questionnaire_is_standard_fhir_resource_with_expected_baseline_items():
     assert questionnaire["version"] == QUESTIONNAIRE_VERSION
 
     top_level = {item["linkId"]: item for item in questionnaire["item"]}
-    assert set(top_level) == {
+    assert {
         "sleep-hours",
         "pain-score",
         "phq2",
@@ -92,7 +92,7 @@ def test_questionnaire_is_standard_fhir_resource_with_expected_baseline_items():
         "medications",
         "feeling-today",
         "life-today",
-    }
+    }.issubset(set(top_level))
     assert top_level["sleep-hours"]["type"] == "quantity"
     assert top_level["pain-score"]["code"][0]["code"] == PAIN_LOINC
     assert top_level["heart-rate"]["code"][0]["code"] == HEART_RATE_LOINC

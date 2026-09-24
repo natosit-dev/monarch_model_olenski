@@ -2,11 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from monarch.questionnaire.choices import (
+    HOME_SAFETY_OPTIONS,
+    SAFE_ABSENCE_OPTIONS,
+    STOP_RETURN_OPTIONS,
+    YES_NO_UNSURE_OPTIONS,
+    MONARCH_ANSWER_SYSTEM,
+)
 from monarch.questionnaire.definitions import question_item
+from monarch.questionnaire.scope import SCOPE_OPTIONS
 
 
 QUESTIONNAIRE_ID = "caregiver-health-baseline"
-QUESTIONNAIRE_VERSION = "0.2"
+QUESTIONNAIRE_VERSION = "0.3"
 QUESTIONNAIRE_URL = "https://medilacra.dev/fhir/Questionnaire/caregiver-health-baseline"
 MEDILACRA_CODE_SYSTEM = "https://medilacra.dev/fhir/CodeSystem/caregiver-health"
 LOINC_SYSTEM = "http://loinc.org"
@@ -51,25 +59,12 @@ def _question_item(
     answer_options: Sequence[Mapping[str, Any]] | None = None,
     repeats: bool = False,
 ) -> dict[str, Any]:
-    return question_item(
-        link_id,
-        text,
-        item_type,
-        coding=coding,
-        answer_options=answer_options,
-        repeats=repeats,
-    )
+    return question_item(link_id, text, item_type, coding=coding, answer_options=answer_options, repeats=repeats)
 
 
 def build_questionnaire() -> dict[str, Any]:
     phq_options = [
-        {
-            "valueCoding": {
-                "system": LOINC_SYSTEM,
-                "code": code,
-                "display": display,
-            }
-        }
+        {"valueCoding": {"system": LOINC_SYSTEM, "code": code, "display": display}}
         for code, display, _score in PHQ_CHOICES
     ]
     pain_options = [{"valueInteger": value} for value in range(0, 11)]
@@ -79,13 +74,8 @@ def build_questionnaire() -> dict[str, Any]:
         "Medication",
         "group",
         repeats=True,
-        enable_when=[
-            {
-                "question": "medication-status",
-                "operator": "=",
-                "answerBoolean": True,
-            }
-        ],
+        min_scope="high_level",
+        enable_when=[{"question": "medication-status", "operator": "=", "answerBoolean": True}],
         children=[
             question_item("medication-name", "Medication name", "string"),
             question_item("medication-dose-value", "Dose", "decimal"),
@@ -100,18 +90,71 @@ def build_questionnaire() -> dict[str, Any]:
         "id": QUESTIONNAIRE_ID,
         "url": QUESTIONNAIRE_URL,
         "version": QUESTIONNAIRE_VERSION,
-        "name": "CaregiverHealthBaseline",
-        "title": "MediLacra Caregiver Health Baseline",
+        "name": "MonarchCaregiverAssessment",
+        "title": "Monarch Model Caregiver Assessment",
         "status": "active",
         "experimental": True,
-        "date": "2026-09-09",
-        "publisher": "MediLacra",
+        "date": "2026-09-24",
+        "publisher": "MediLacra / Monarch Model prototype",
         "description": (
-            "Baseline caregiver-health questionnaire for Gravity/SDC materialization, "
-            "semantic-preservation testing, and optional free-text lived-experience capture."
+            "Caregiver assessment prototype inspired by the Monarch Model. "
+            "Preserves lived experience and capacity context before downstream interpretation."
         ),
         "subjectType": ["Patient"],
         "item": [
+            question_item(
+                "assessment-scope",
+                "How much do you feel like you can handle right now?",
+                "choice",
+                answer_options=SCOPE_OPTIONS,
+                required=True,
+                section="Evaluation depth",
+            ),
+            question_item(
+                "interaction-unsafe",
+                "Is there anything that would make this interaction feel unsafe?",
+                "text",
+                min_scope="urgent_only",
+                section="Interaction and safety preferences",
+                placeholder="Anything you want the system or care team to know.",
+            ),
+            question_item(
+                "question-boundaries",
+                "Are there kinds of questions you would prefer not to answer?",
+                "text",
+                min_scope="urgent_only",
+                section="Interaction and safety preferences",
+            ),
+            question_item(
+                "support-person",
+                "Would you like someone with you for this discussion?",
+                "choice",
+                answer_options=YES_NO_UNSURE_OPTIONS,
+                min_scope="urgent_only",
+                section="Interaction and safety preferences",
+            ),
+            question_item(
+                "communication-preferences",
+                "Are there ways we should communicate with you differently?",
+                "text",
+                min_scope="urgent_only",
+                section="Interaction and safety preferences",
+            ),
+            question_item(
+                "difficult-situations",
+                "Are there procedures, environments, or situations you want us to know may be difficult?",
+                "text",
+                min_scope="urgent_only",
+                section="Interaction and safety preferences",
+            ),
+            question_item(
+                "stop-return-preference",
+                "Would you like to stop or come back later?",
+                "choice",
+                answer_options=STOP_RETURN_OPTIONS,
+                min_scope="urgent_only",
+                section="Interaction and safety preferences",
+            ),
             question_item(
                 "sleep-hours",
                 "About how many hours did you sleep in the past 24 hours?",
@@ -119,7 +162,8 @@ def build_questionnaire() -> dict[str, Any]:
                 coding=local_coding("sleep-hours-24h", "Hours slept in past 24 hours"),
                 placeholder="e.g. 6.5",
                 quantity_unit_coding={"system": UCUM_SYSTEM, "code": "h", "display": "hours"},
-                section="Sleep",
+                min_scope="basics",
+                section="Current capacity",
             ),
             question_item(
                 "pain-score",
@@ -127,29 +171,37 @@ def build_questionnaire() -> dict[str, Any]:
                 "integer",
                 coding=loinc_coding(PAIN_LOINC, "Pain severity - 0-10 verbal numeric rating [Score] - Reported"),
                 answer_options=pain_options,
-                section="Pain",
+                min_scope="basics",
+                section="Current capacity",
+            ),
+            question_item(
+                "feeling-today",
+                "How are you feeling today?",
+                "text",
+                coding=local_coding("feeling-today", "How are you feeling today?"),
+                placeholder="Write as much or as little as you want.",
+                min_scope="basics",
+                section="Current context",
+            ),
+            question_item(
+                "life-today",
+                "What's going on in your life today?",
+                "text",
+                coding=local_coding("life-today", "What's going on in your life today?"),
+                placeholder="Anything that feels relevant today.",
+                min_scope="basics",
+                section="Current context",
             ),
             question_item(
                 "phq2",
                 "Over the last 2 weeks, how often have you been bothered by the following problems?",
                 "group",
                 coding=loinc_coding(PHQ2_TOTAL, "PHQ-2 total score"),
-                section="PHQ-2",
+                min_scope="high_level",
+                section="Current capacity",
                 children=[
-                    question_item(
-                        "phq2-interest",
-                        "Little interest or pleasure in doing things",
-                        "choice",
-                        coding=loinc_coding(PHQ2_QUESTION_1, "Little interest or pleasure in doing things"),
-                        answer_options=phq_options,
-                    ),
-                    question_item(
-                        "phq2-depressed",
-                        "Feeling down, depressed, or hopeless",
-                        "choice",
-                        coding=loinc_coding(PHQ2_QUESTION_2, "Feeling down, depressed, or hopeless"),
-                        answer_options=phq_options,
-                    ),
+                    question_item("phq2-interest", "Little interest or pleasure in doing things", "choice", coding=loinc_coding(PHQ2_QUESTION_1, "Little interest or pleasure in doing things"), answer_options=phq_options),
+                    question_item("phq2-depressed", "Feeling down, depressed, or hopeless", "choice", coding=loinc_coding(PHQ2_QUESTION_2, "Feeling down, depressed, or hopeless"), answer_options=phq_options),
                 ],
             ),
             question_item(
@@ -159,30 +211,59 @@ def build_questionnaire() -> dict[str, Any]:
                 coding=loinc_coding(HEART_RATE_LOINC, "Heart rate"),
                 placeholder="e.g. 82",
                 quantity_unit_coding={"system": UCUM_SYSTEM, "code": "/min", "display": "beats/minute"},
-                section="Heart rate",
+                min_scope="high_level",
+                section="Current capacity",
             ),
             question_item(
                 "medication-status",
                 "Are you currently taking any medications?",
                 "boolean",
+                min_scope="high_level",
                 section="Medication reconciliation",
             ),
             medication_group,
+            question_item("financial-unexpected-100", "Can you handle an unexpected $100 expense?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
+            question_item("financial-unexpected-500", "Can you handle an unexpected $500 expense?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
+            question_item("financial-miss-week-work", "Could you miss one week of work?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
+            question_item("financial-healthcare-cost-difficulty", "Are you having difficulty paying current healthcare costs?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
+            question_item("financial-debt-affects-care", "Is debt currently affecting healthcare choices?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
+            question_item("financial-current-savings", "Current savings (optional exact amount)", "decimal", min_scope="full", section="Financial capacity", placeholder="Optional amount, e.g. 2500"),
+            question_item("financial-current-debt", "Current debt (optional exact amount)", "decimal", min_scope="full", section="Financial capacity", placeholder="Optional amount, e.g. 6000"),
             question_item(
-                "feeling-today",
-                "How are you feeling today?",
+                "care-hours-per-day",
+                "About how many hours per day do you spend administering care?",
+                "quantity",
+                min_scope="high_level",
+                section="Caregiver capacity",
+                quantity_unit_coding={"system": UCUM_SYSTEM, "code": "h", "display": "hours/day"},
+                placeholder="e.g. 6",
+            ),
+            question_item("safe-absence-mode", "How long do you feel you can safely leave the home?", "choice", answer_options=SAFE_ABSENCE_OPTIONS, min_scope="high_level", section="Caregiver capacity"),
+            question_item(
+                "safe-absence-hours",
+                "Safe time away from home (hours)",
+                "quantity",
+                min_scope="high_level",
+                section="Caregiver capacity",
+                quantity_unit_coding={"system": UCUM_SYSTEM, "code": "h", "display": "hours"},
+                enable_when=[{"question": "safe-absence-mode", "operator": "=", "answerCoding": {"system": MONARCH_ANSWER_SYSTEM, "code": "hours"}}],
+            ),
+            question_item("home-safety", "What safety precautions are in place at home?", "choice", answer_options=HOME_SAFETY_OPTIONS, repeats=True, min_scope="high_level", section="Caregiver capacity"),
+            question_item(
+                "home-safety-other",
+                "Other home safety precautions",
                 "text",
-                coding=local_coding("feeling-today", "How are you feeling today?"),
-                placeholder="Write as much or as little as you want.",
-                section="How are you feeling today?",
+                min_scope="high_level",
+                section="Caregiver capacity",
+                enable_when=[{"question": "home-safety", "operator": "=", "answerCoding": {"system": MONARCH_ANSWER_SYSTEM, "code": "other"}}],
             ),
             question_item(
-                "life-today",
-                "What's going on in your life today?",
+                "context-artifact-text",
+                "Anything else you want to add about what's going on right now?",
                 "text",
-                coding=local_coding("life-today", "What's going on in your life today?"),
-                placeholder="Anything that feels relevant today.",
-                section="What's going on in your life today?",
+                min_scope="high_level",
+                section="Additional context",
+                placeholder="Raw context only for now. Analysis can happen later.",
             ),
         ],
     }

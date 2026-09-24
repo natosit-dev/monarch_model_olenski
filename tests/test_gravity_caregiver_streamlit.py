@@ -40,7 +40,7 @@ def test_gravity_caregiver_page_renders_with_existing_synthetic_patient(tmp_path
     app = AppTest.from_file(str(_page_path()), default_timeout=10).run()
 
     assert not app.exception
-    assert app.title[0].value == "Gravity — Caregiver Health Baseline"
+    assert app.title[0].value == "Monarch Model — Caregiver Assessment"
     assert any(button.label == "Reset assessment" for button in app.button)
     assert any(button.label == "Submit assessment" for button in app.button)
     assert any(selectbox.label == "Patient" for selectbox in app.selectbox)
@@ -110,3 +110,22 @@ def test_reset_clears_decline_state_and_returns_questionnaire_controls_to_baseli
     life_area = next(area for area in app.text_area if area.label == "What's going on in your life today?")
     assert feeling_area.value == ""
     assert life_area.value == ""
+
+
+def test_scope_selector_controls_high_level_questions(tmp_path, monkeypatch):
+    db_path = str(tmp_path / "monarch-ui-scope.duckdb")
+    monkeypatch.setenv("MEDILACRA_DB_PATH", db_path)
+    _seed_patient(db_path)
+
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(_page_path()), default_timeout=10).run()
+    assert not app.exception
+    scope = next(selectbox for selectbox in app.selectbox if selectbox.label == "How much do you feel like you can handle right now?")
+    assert scope.value == "basics"
+    assert not any(selectbox.label == "Can you handle an unexpected $100 expense?" for selectbox in app.selectbox)
+
+    app = scope.set_value("high_level").run()
+    assert not app.exception
+    assert any(selectbox.label == "Can you handle an unexpected $100 expense?" for selectbox in app.selectbox)
+    assert any(multiselect.label == "What safety precautions are in place at home?" for multiselect in app.multiselect)

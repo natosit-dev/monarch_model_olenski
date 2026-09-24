@@ -46,3 +46,9 @@ The pre-Monarch working baseline is documented in:
 `docs/baseline/MONARCH_BASELINE_v0.1_2026-09-24.md`
 
 A dedicated baseline branch preserves that checkpoint separately from ongoing Monarch implementation work.
+
+## Current design
+
+The first post-baseline Monarch implementation design is:
+
+`docs/design/MONARCH_MODEL_V0.2_DESIGN.md`

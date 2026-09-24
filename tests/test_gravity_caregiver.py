@@ -1,0 +1,363 @@
+from __future__ import annotations
+
+import io
+import zipfile
+
+from connectathon.gravity_caregiver import build_artifact_files, build_artifact_zip
+from connectathon.gravity_materialize import (
+    build_submission_bundle,
+    bundle_resources,
+    observation_by_loinc,
+)
+from connectathon.gravity_quality import caregiver_quality_gate
+from connectathon.gravity_questionnaire import (
+    HEART_RATE_LOINC,
+    LOINC_SYSTEM,
+    PAIN_LOINC,
+    PHQ2_TOTAL,
+    QUESTIONNAIRE_VERSION,
+    RXNORM_SYSTEM,
+    UCUM_SYSTEM,
+    build_questionnaire,
+)
+from connectathon.gravity_response import (
+    answer_absent_reason,
+    build_questionnaire_response,
+    first_answer,
+)
+from connectathon.gravity_storage import (
+    load_questionnaire_responses,
+    save_questionnaire_response,
+)
+
+
+PATIENT = {
+    "patient_id": "PAT-GRAVITY-001",
+    "patient_name": "CAREGIVER, CASEY",
+    "date_of_birth": "1982-03-14",
+    "sex": "F",
+    "phone": "555-0100",
+    "address": "1 Test Way",
+    "city": "Lowell",
+    "state": "MA",
+    "zip": "01852",
+}
+
+HAPPY_INPUT = {
+    "sleep-hours": "6.5",
+    "pain-score": 4,
+    "phq2-interest": "LA6569-3",
+    "phq2-depressed": "LA6568-5",
+    "heart-rate": "82",
+    "medication-status": True,
+    "medications": [
+        {
+            "name": "lisinopril",
+            "dose_value": "10",
+            "dose_unit": "mg",
+            "route": "oral",
+            "frequency": "daily",
+        }
+    ],
+    "feeling-today": "Tired, but pretty steady today.",
+    "life-today": "My mom has an appointment and work is busy.",
+}
+
+
+def _bundle(raw_input=HAPPY_INPUT, declined=None):
+    response = build_questionnaire_response(
+        PATIENT["patient_id"],
+        raw_input,
+        declined=set(declined or []),
+        response_id="gravity-test-response",
+        authored="2026-09-08T22:00:00+00:00",
+    )
+    bundle, cleanup = build_submission_bundle(PATIENT, response)
+    return response, bundle, cleanup
+
+
+def test_questionnaire_is_standard_fhir_resource_with_expected_baseline_items():
+    questionnaire = build_questionnaire()
+
+    assert questionnaire["resourceType"] == "Questionnaire"
+    assert questionnaire["version"] == QUESTIONNAIRE_VERSION
+
+    top_level = {item["linkId"]: item for item in questionnaire["item"]}
+    assert set(top_level) == {
+        "sleep-hours",
+        "pain-score",
+        "phq2",
+        "heart-rate",
+        "medication-status",
+        "medications",
+        "feeling-today",
+        "life-today",
+    }
+    assert top_level["sleep-hours"]["type"] == "quantity"
+    assert top_level["pain-score"]["code"][0]["code"] == PAIN_LOINC
+    assert top_level["heart-rate"]["code"][0]["code"] == HEART_RATE_LOINC
+    assert top_level["medications"]["type"] == "group"
+    assert top_level["medications"]["repeats"] is True
+    assert top_level["feeling-today"]["type"] == "text"
+    assert top_level["life-today"]["type"] == "text"
+
+    medication_fields = {item["linkId"] for item in top_level["medications"]["item"]}
+    assert medication_fields == {
+        "medication-name",
+        "medication-dose-value",
+        "medication-dose-unit",
+        "medication-route",
+        "medication-frequency",
+    }
+    assert "medication-rxnorm" not in medication_fields
+
+
+def test_happy_path_materializes_recognizable_clinical_facts():
+    response, bundle, _cleanup = _bundle()
+
+    assert response["resourceType"] == "QuestionnaireResponse"
+    assert response["subject"]["reference"] == "Patient/PAT-GRAVITY-001"
+
+    heart = observation_by_loinc(bundle, HEART_RATE_LOINC)
+    assert heart is not None
+    assert heart["valueQuantity"] == {
+        "value": 82.0,
+        "unit": "beats/minute",
+        "system": UCUM_SYSTEM,
+        "code": "/min",
+    }
+
+    pain = observation_by_loinc(bundle, PAIN_LOINC)
+    assert pain is not None
+    assert pain["valueInteger"] == 4
+
+    phq_total = observation_by_loinc(bundle, PHQ2_TOTAL)
+    assert phq_total is not None
+    assert phq_total["valueInteger"] == 1
+
+    medications = bundle_resources(bundle, "MedicationStatement")
+    assert len(medications) == 1
+    medication = medications[0]
+    assert medication["medicationCodeableConcept"]["text"] == "lisinopril"
+    coding = medication["medicationCodeableConcept"]["coding"][0]
+    assert coding["system"] == RXNORM_SYSTEM
+    assert coding["code"] == "29046"
+    assert coding["display"] == "lisinopril"
+
+    dosage = medication["dosage"][0]
+    assert dosage["route"]["text"] == "oral"
+    assert dosage["timing"]["code"]["text"] == "daily"
+    assert dosage["doseAndRate"][0]["doseQuantity"] == {
+        "value": 10.0,
+        "unit": "mg",
+        "system": UCUM_SYSTEM,
+        "code": "mg",
+    }
+
+
+def test_journal_text_is_preserved_verbatim_in_questionnaire_response_only():
+    response, bundle, _cleanup = _bundle()
+
+    feeling = first_answer(response, "feeling-today")
+    life = first_answer(response, "life-today")
+    assert feeling == {"valueString": HAPPY_INPUT["feeling-today"]}
+    assert life == {"valueString": HAPPY_INPUT["life-today"]}
+
+    observations = bundle_resources(bundle, "Observation")
+    local_observation_codes = {
+        coding.get("code")
+        for observation in observations
+        for coding in ((observation.get("code") or {}).get("coding") or [])
+    }
+    assert "feeling-today" not in local_observation_codes
+    assert "life-today" not in local_observation_codes
+
+
+def test_unknown_medication_preserves_text_without_inventing_a_code():
+    raw = dict(HAPPY_INPUT)
+    raw["medications"] = [
+        {
+            "name": "Mystery Medicine",
+            "dose_value": "5",
+            "dose_unit": "mg",
+            "route": "oral",
+            "frequency": "daily",
+        }
+    ]
+    _response, bundle, _cleanup = _bundle(raw)
+
+    medications = bundle_resources(bundle, "MedicationStatement")
+    assert len(medications) == 1
+    concept = medications[0]["medicationCodeableConcept"]
+    assert concept["text"] == "Mystery Medicine"
+    assert "coding" not in concept
+
+
+def test_decline_is_preserved_as_standard_data_absent_reason():
+    raw = dict(HAPPY_INPUT)
+    raw["sleep-hours"] = ""
+    response, bundle, _cleanup = _bundle(raw, declined={"sleep-hours"})
+
+    sleep_answer = first_answer(response, "sleep-hours")
+    assert answer_absent_reason(sleep_answer) == "asked-declined"
+
+    sleep_observations = [
+        observation
+        for observation in bundle_resources(bundle, "Observation")
+        if ((observation.get("code") or {}).get("coding") or [{}])[0].get("code") == "sleep-hours-24h"
+    ]
+    assert sleep_observations == []
+
+    report = caregiver_quality_gate(bundle)
+    sleep_check = next(check for check in report["checks"] if check["check"] == "sleep.plausibility")
+    assert sleep_check["status"] == "PASS"
+    assert sleep_check["detail"] == "declined"
+
+
+def test_journal_decline_is_preserved_without_inventing_text():
+    raw = dict(HAPPY_INPUT)
+    raw["feeling-today"] = ""
+    response, _bundle_value, _cleanup = _bundle(raw, declined={"feeling-today"})
+
+    answer = first_answer(response, "feeling-today")
+    assert answer_absent_reason(answer) == "asked-declined"
+    assert "valueString" not in answer
+
+
+def test_phq_total_is_omitted_when_one_component_is_not_answered():
+    raw = dict(HAPPY_INPUT)
+    raw["phq2-depressed"] = None
+    _response, bundle, _cleanup = _bundle(raw)
+
+    assert observation_by_loinc(bundle, PHQ2_TOTAL) is None
+    report = caregiver_quality_gate(bundle)
+    total_check = next(check for check in report["checks"] if check["check"] == "phq2.total")
+    assert total_check["status"] == "PASS"
+
+
+def test_unusual_positive_heart_rate_is_plausible_but_negative_is_not():
+    high = dict(HAPPY_INPUT)
+    high["heart-rate"] = "190"
+    _response, high_bundle, _cleanup = _bundle(high)
+    high_report = caregiver_quality_gate(high_bundle)
+    high_check = next(check for check in high_report["checks"] if check["check"] == "heart_rate.plausibility")
+    assert high_check["status"] == "PASS"
+
+    negative = dict(HAPPY_INPUT)
+    negative["heart-rate"] = "-12"
+    _response, negative_bundle, _cleanup = _bundle(negative)
+    negative_report = caregiver_quality_gate(negative_bundle)
+    negative_check = next(check for check in negative_report["checks"] if check["check"] == "heart_rate.plausibility")
+    assert negative_check["status"] == "FAIL"
+    assert negative_report["status"] == "FAIL"
+
+
+def test_out_of_range_pain_fails_plausibility():
+    raw = dict(HAPPY_INPUT)
+    raw["pain-score"] = 47
+    _response, bundle, _cleanup = _bundle(raw)
+
+    report = caregiver_quality_gate(bundle)
+    check = next(check for check in report["checks"] if check["check"] == "pain.plausibility")
+    assert check["status"] == "FAIL"
+
+
+def test_corrupt_numeric_input_stays_error_and_does_not_become_observation():
+    raw = dict(HAPPY_INPUT)
+    raw["heart-rate"] = "potato"
+    response, bundle, _cleanup = _bundle(raw)
+
+    answer = first_answer(response, "heart-rate")
+    assert answer_absent_reason(answer) == "error"
+    assert observation_by_loinc(bundle, HEART_RATE_LOINC) is None
+
+    report = caregiver_quality_gate(bundle)
+    parse_check = next(check for check in report["checks"] if check["check"] == "response.parse_errors")
+    assert parse_check["status"] == "FAIL"
+    assert report["status"] == "FAIL"
+
+
+def test_bundle_reuses_connectathon_fullurl_and_reference_normalization():
+    _response, bundle, cleanup = _bundle()
+
+    assert bundle["resourceType"] == "Bundle"
+    assert bundle["type"] == "collection"
+    assert cleanup["full_urls_added"] == len(bundle["entry"])
+
+    full_urls = {entry["fullUrl"] for entry in bundle["entry"]}
+    assert len(full_urls) == len(bundle["entry"])
+    assert all(url.startswith("urn:uuid:") for url in full_urls)
+
+    questionnaire_response = bundle_resources(bundle, "QuestionnaireResponse")[0]
+    assert questionnaire_response["subject"]["reference"] in full_urls
+
+    report = caregiver_quality_gate(bundle)
+    assert report["structural"]["status"] == "PASS"
+
+
+def test_expected_terminology_systems_are_preserved():
+    _response, bundle, _cleanup = _bundle()
+
+    for loinc_code in (PAIN_LOINC, HEART_RATE_LOINC, PHQ2_TOTAL):
+        observation = observation_by_loinc(bundle, loinc_code)
+        assert observation is not None
+        coding = observation["code"]["coding"][0]
+        assert coding["system"] == LOINC_SYSTEM
+
+
+def test_duckdb_persistence_keeps_fhir_json_and_nested_struct_projection(tmp_path):
+    response, bundle, _cleanup = _bundle()
+    db_path = str(tmp_path / "gravity-caregiver.duckdb")
+
+    save_questionnaire_response(
+        response,
+        HAPPY_INPUT,
+        bundle=bundle,
+        db_path=db_path,
+    )
+    rows = load_questionnaire_responses(limit=5, db_path=db_path)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["response_id"] == "gravity-test-response"
+    assert row["patient_id"] == "PAT-GRAVITY-001"
+    assert row["questionnaire_version"] == QUESTIONNAIRE_VERSION
+    assert isinstance(row["items"], list)
+    assert any(item["link_id"] == "heart-rate" and item["value_number"] == 82.0 for item in row["items"])
+    assert any(
+        item["link_id"] == "feeling-today" and item["value_text"] == HAPPY_INPUT["feeling-today"]
+        for item in row["items"]
+    )
+    assert any(
+        item["link_id"] == "life-today" and item["value_text"] == HAPPY_INPUT["life-today"]
+        for item in row["items"]
+    )
+    assert '\"resourceType\": \"QuestionnaireResponse\"' in row["fhir_json"]
+    assert '\"resourceType\": \"Bundle\"' in row["bundle_json"]
+
+
+def test_artifact_zip_contains_the_same_complete_individual_output_set():
+    response, bundle, cleanup = _bundle()
+    quality = caregiver_quality_gate(bundle)
+    result = {
+        "questionnaire": build_questionnaire(),
+        "questionnaire_response": response,
+        "bundle": bundle,
+        "cleanup": cleanup,
+        "quality": quality,
+    }
+
+    files = build_artifact_files(result)
+    assert set(files) == {
+        f"caregiver_health_baseline_questionnaire_v{QUESTIONNAIRE_VERSION}.json",
+        "caregiver_health_questionnaire_response.json",
+        "caregiver_health_phase1_bundle.json",
+        "caregiver_health_quality_report.json",
+        "caregiver_health_bundle_cleanup.json",
+    }
+
+    archive_bytes = build_artifact_zip(result)
+    with zipfile.ZipFile(io.BytesIO(archive_bytes), "r") as archive:
+        assert set(archive.namelist()) == set(files)
+        for filename, payload in files.items():
+            assert archive.read(filename) == payload

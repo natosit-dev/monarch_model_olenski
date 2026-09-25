@@ -64,3 +64,13 @@ The implementation plan for the v0.2 design is:
 Implementation history and CI results:
 
 `docs/build/MONARCH_V0.2_BUILD_HISTORY_2026-09-24.md`
+
+### DiScO suite
+
+The standalone DiScO tools are available as Streamlit pages:
+
+- `pages/30_DiScO_Text_Evaluator.py` — text/document judgement, provenance, and labelled feedback
+- `pages/31_Disco_Fever.py` — rule/scoring calibration
+- `pages/32_Discotorium.py` — stored judgement and corpus review
+
+Import provenance: `docs/build/DISCO_SUITE_IMPORT_2026-09-24.md`

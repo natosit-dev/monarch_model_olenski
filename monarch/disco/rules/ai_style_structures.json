@@ -1,0 +1,59 @@
+[
+  {
+    "id": "contrastive_reframing",
+    "label": "Contrastive reframing",
+    "kind": "regex",
+    "semantic_max": 0.0,
+    "ai_max": 0.03,
+    "half_saturation": 0.5,
+    "pattern": "\\b(?:not\\s+(?:just|simply|merely|only)\\b.{0,80}?\\bbut\\b|not\\b.{1,80}?\\bbut\\b|this\\s+(?:isn't|is\\s+not)\\b.{1,80}?\\b(?:it's|it\\s+is)\\b)"
+  },
+  {
+    "id": "formulaic_signposting",
+    "label": "Formulaic signposting",
+    "kind": "lexicon",
+    "semantic_max": 0.0,
+    "ai_max": 0.03,
+    "half_saturation": 0.5,
+    "terms": [
+      "in other words",
+      "put differently",
+      "the key point is",
+      "what matters is",
+      "the distinction is"
+    ]
+  },
+  {
+    "id": "pseudo_conversational_setup",
+    "label": "Pseudo-conversational setup",
+    "kind": "lexicon",
+    "semantic_max": 0.0,
+    "ai_max": 0.02,
+    "half_saturation": 0.5,
+    "terms": [
+      "here's the thing",
+      "here’s the thing",
+      "here's why",
+      "here’s why",
+      "think of it this way"
+    ]
+  },
+  {
+    "id": "punchy_synthetic_conclusion",
+    "label": "Punchy synthetic conclusions",
+    "kind": "regex",
+    "semantic_max": 0.0,
+    "ai_max": 0.02,
+    "half_saturation": 0.5,
+    "pattern": "\\b(?:(?:that|this)(?:\\s+\\w+){0,2}\\s+matters|(?:that|this)(?:'s|\\s+is)\\s+the\\s+(?:point|distinction))\\s*[.!?]"
+  },
+  {
+    "id": "label_colon_scaffolding",
+    "label": "Label-colon scaffolding",
+    "kind": "regex",
+    "semantic_max": 0.0,
+    "ai_max": 0.02,
+    "half_saturation": 1.0,
+    "pattern": "(?m)^[A-Za-z][A-Za-z0-9&()'’-]*(?:[ /][A-Za-z0-9&()'’-]+){0,2}:\\s+\\S"
+  }
+]

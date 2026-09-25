@@ -35,7 +35,14 @@ jobs:
             monarch/disco/config.py \
             monarch/disco/engine.py \
             monarch/disco/cadence.py \
+            monarch/disco/artifacts.py \
+            monarch/disco/feedback.py \
+            monarch/disco/guidance.py \
+            doc_history/__init__.py \
+            doc_history/extractor.py \
             pages/30_DiScO_Text_Evaluator.py \
+            pages/31_Disco_Fever.py \
+            pages/32_Discotorium.py \
             connectathon/gravity_questionnaire.py \
             connectathon/gravity_response.py \
             pages/10_Gravity_Caregiver_Health.py

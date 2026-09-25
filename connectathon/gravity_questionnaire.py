@@ -19,6 +19,8 @@ QUESTIONNAIRE_URL = "https://medilacra.dev/fhir/Questionnaire/caregiver-health-b
 MEDILACRA_CODE_SYSTEM = "https://medilacra.dev/fhir/CodeSystem/caregiver-health"
 LOINC_SYSTEM = "http://loinc.org"
 UCUM_SYSTEM = "http://unitsofmeasure.org"
+ISO_4217_SYSTEM = "urn:iso:std:iso:4217"
+DEFAULT_CURRENCY = "USD"
 RXNORM_SYSTEM = "http://www.nlm.nih.gov/research/umls/rxnorm"
 DATA_ABSENT_REASON_URL = "http://hl7.org/fhir/StructureDefinition/data-absent-reason"
 
@@ -227,15 +229,15 @@ def build_questionnaire() -> dict[str, Any]:
             question_item("financial-miss-week-work", "Could you miss one week of work?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
             question_item("financial-healthcare-cost-difficulty", "Are you having difficulty paying current healthcare costs?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
             question_item("financial-debt-affects-care", "Is debt currently affecting healthcare choices?", "choice", answer_options=YES_NO_UNSURE_OPTIONS, min_scope="high_level", section="Financial capacity"),
-            question_item("financial-current-savings", "Current savings (optional exact amount)", "decimal", min_scope="full", section="Financial capacity", placeholder="Optional amount, e.g. 2500"),
-            question_item("financial-current-debt", "Current debt (optional exact amount)", "decimal", min_scope="full", section="Financial capacity", placeholder="Optional amount, e.g. 6000"),
+            question_item("financial-current-savings", "Current savings (optional exact amount; USD)", "quantity", min_scope="full", section="Financial capacity", placeholder="Optional amount, e.g. 2500", quantity_unit_coding={"system": ISO_4217_SYSTEM, "code": DEFAULT_CURRENCY, "display": DEFAULT_CURRENCY}),
+            question_item("financial-current-debt", "Current debt (optional exact amount; USD)", "quantity", min_scope="full", section="Financial capacity", placeholder="Optional amount, e.g. 6000", quantity_unit_coding={"system": ISO_4217_SYSTEM, "code": DEFAULT_CURRENCY, "display": DEFAULT_CURRENCY}),
             question_item(
                 "care-hours-per-day",
                 "About how many hours per day do you spend administering care?",
                 "quantity",
                 min_scope="high_level",
                 section="Caregiver capacity",
-                quantity_unit_coding={"system": UCUM_SYSTEM, "code": "h", "display": "hours/day"},
+                quantity_unit_coding={"system": UCUM_SYSTEM, "code": "h/d", "display": "hours/day"},
                 placeholder="e.g. 6",
             ),
             question_item("safe-absence-mode", "How long do you feel you can safely leave the home?", "choice", answer_options=SAFE_ABSENCE_OPTIONS, min_scope="high_level", section="Caregiver capacity"),

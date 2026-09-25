@@ -278,10 +278,12 @@ def build_questionnaire_response(
     qr_id = fhir_id(response_id or f"caregiver-qr-{uuid.uuid4().hex}", prefix="qr")
     authored = authored or datetime.now(timezone.utc).isoformat(timespec="seconds")
     selected_scope = str(raw_input.get("assessment-scope") or "full")
+    input_values = dict(raw_input)
+    input_values.setdefault("assessment-scope", selected_scope)
     questionnaire = build_questionnaire()
     items = build_response_items(
         list(questionnaire.get("item") or []),
-        raw_input,
+        input_values,
         declined=declined,
         selected_scope=selected_scope,
         custom_builders={"medications": _medications_response_builder},

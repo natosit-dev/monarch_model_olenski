@@ -20,12 +20,22 @@ The baseline includes the MediLacra synthetic Patient generator required by the 
 
 It intentionally does **not** import unrelated Connectathon experiments, DiScO, PIQI tooling, IRIS integration, notebooks, or large terminology datasets.
 
-### Run the caregiver baseline
+### Run the Streamlit app
 
 ```bash
 pip install -r requirements.txt
-streamlit run pages/10_Gravity_Caregiver_Health.py
+streamlit run Home.py
 ```
+
+Streamlit discovers the modules in `pages/` automatically and exposes them through the normal sidebar navigation.
+
+Current pages:
+
+- `pages/10_Gravity_Caregiver_Health.py` — Monarch caregiver assessment
+- `pages/20_Monarch_Glossary.py` — Monarch glossary
+- `pages/30_DiScO_Text_Evaluator.py` — DiScO text/document evaluator
+- `pages/31_Disco_Fever.py` — DiScO calibration
+- `pages/32_Discotorium.py` — DiScO judgement/corpus review
 
 ### Test
 

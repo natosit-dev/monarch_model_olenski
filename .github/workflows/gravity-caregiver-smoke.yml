@@ -26,6 +26,7 @@ jobs:
       - name: Compile questionnaire modules
         run: |
           python -m py_compile \
+            Home.py \
             monarch/questionnaire/definitions.py \
             monarch/questionnaire/choices.py \
             monarch/questionnaire/scope.py \
@@ -55,4 +56,5 @@ jobs:
             tests/test_gravity_caregiver_streamlit.py \
             tests/test_monarch_questionnaire.py \
             tests/test_monarch_glossary_streamlit.py \
-            tests/test_monarch_disco.py
+            tests/test_monarch_disco.py \
+            tests/test_monarch_home.py

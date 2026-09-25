@@ -31,6 +31,7 @@ jobs:
             monarch/questionnaire/scope.py \
             monarch/questionnaire/response_adapter.py \
             monarch/questionnaire/renderer.py \
+            monarch/glossary.py \
             connectathon/gravity_questionnaire.py \
             connectathon/gravity_response.py \
             pages/10_Gravity_Caregiver_Health.py
@@ -41,4 +42,5 @@ jobs:
             tests/test_gravity_caregiver.py \
             tests/test_gravity_hl7v2.py \
             tests/test_gravity_caregiver_streamlit.py \
-            tests/test_monarch_questionnaire.py
+            tests/test_monarch_questionnaire.py \
+            tests/test_monarch_glossary_streamlit.py

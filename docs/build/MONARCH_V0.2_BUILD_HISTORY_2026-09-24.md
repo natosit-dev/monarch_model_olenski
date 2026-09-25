@@ -579,3 +579,114 @@ Monarch v0.3 questionnaire / response artifact
 ```
 
 while confirming that the old downstream FHIR and HL7 projections still preserve the original baseline facts.
+
+---
+
+# 18. First human-run patch — units and Monarch capture validation
+
+After the first full human run, three narrow issues were identified and corrected.
+
+## 18.1 USD made explicit
+
+The optional exact financial fields previously serialized as bare FHIR decimal answers:
+
+```text
+financial-current-savings → 16000
+financial-current-debt    → 6000
+```
+
+That preserved the number but not the currency.
+
+The fields now serialize as FHIR Quantity answers using the project default currency:
+
+```text
+system = urn:iso:std:iso:4217
+code   = USD
+unit   = USD
+```
+
+The user-facing questions also identify USD as the default.
+
+No multi-currency UI was added.
+
+## 18.2 Caregiving labor UCUM corrected
+
+The first run exposed a mismatch:
+
+```text
+display = hours/day
+code    = h
+```
+
+The UCUM code is now:
+
+```text
+h/d
+```
+
+for **hour per day**.
+
+Safe-absence duration remains `h`, because that field represents a duration rather than a per-day rate.
+
+## 18.3 Quality gate expanded
+
+The old quality report primarily validated the imported Gravity caregiver baseline.
+
+The gate now validates the QuestionnaireResponse against the bundled Questionnaire definition and adds explicit Monarch capture checks.
+
+New checks include:
+
+- QuestionnaireResponse canonical matches the bundled Questionnaire URL/version;
+- response status remains `completed` while partial completion is still roadmap work;
+- assessment scope is present and valid;
+- no answers appear above the selected scope;
+- `enableWhen` behavior is respected;
+- response linkIds exist in the Questionnaire;
+- answer types match Questionnaire item types;
+- coded answers match defined answer options;
+- non-repeating questions do not contain multiple answers;
+- quantity systems/codes match the units declared by the Questionnaire;
+- financial Yes/No/Unsure semantics remain valid;
+- optional exact financial amounts use USD / ISO 4217;
+- caregiving labor uses UCUM `h/d` and remains within 0–24 hours/day;
+- safe-absence `hours` / `Unsure` / `Varies` states remain mutually coherent;
+- home-safety `None` and `Unsure` cannot coexist with other selected precautions;
+- `Other` home safety requires detail unless that detail is explicitly declined;
+- interaction-preference coded answers remain valid;
+- raw context remains a text capture and is not analyzed by the quality gate.
+
+The report scope is now:
+
+`MONARCH_CAPTURE_AND_CAREGIVER_BASELINE`
+
+rather than implying that a green report only covers the original Phase 1 fields.
+
+## 18.4 Backward-compatible programmatic scope
+
+Programmatic calls that omit `assessment-scope` now explicitly record the existing default:
+
+`full`
+
+This keeps legacy test/build calls conformant while the Streamlit UI continues to default humans to `basics`.
+
+## 18.5 Patch commit and test result
+
+Patch commit:
+
+`66cdd7be54d2388385b447391724ab393b231690`
+
+**Message:** `Tighten Monarch units and capture quality validation`
+
+GitHub Actions run:
+
+`36076822999`
+
+Result:
+
+```text
+38 passed, 1 warning in 3.26s
+```
+
+The warning remains the pre-existing invalid escape-sequence DeprecationWarning in `hl7_demo/utils.py`.
+
+Artifact filenames and partial-completion behavior were intentionally left unchanged.

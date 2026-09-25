@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# DiScO local judgement corpus and calibration overrides
+data/disco/
